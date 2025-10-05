@@ -1,0 +1,25 @@
+{
+  "name": "rag-pipeline-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [
+    "rag",
+    "chatbot",
+    "rag-pipeline",
+    "build your own chatbot"
+  ],
+  "author": "Shaikh Imran",
+  "license": "ISC",
+  "description": "RAG pipeline for building your own chatbot",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "mongodb": "^6.20.0",
+    "openai": "^6.1.0"
+  }
+}
