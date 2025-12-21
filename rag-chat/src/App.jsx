@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "./App.css";
+// import dotenv from "dotenv";
+import { BASE_URL } from  "./api";
 
+// dotenv.config();
 function App() {
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState([]);
@@ -10,7 +13,8 @@ function App() {
   const [loading, setLoading] = useState(false);
 
   const chatWindowRef = useRef(null);
-
+// below code is responsible for writing single word at a time rather than whole ans at a time so that user 
+// think like machine is generating its ans same thing hapeen with chatgpt as well
   useEffect(() => {
     if (!answer) return;
     let index = 0;
@@ -45,7 +49,7 @@ function App() {
 
     try {
       const res = await axios.post(
-        "http://localhost:8080/ask",
+        `${BASE_URL}/ask`,
         { query },
         {
           headers: {
