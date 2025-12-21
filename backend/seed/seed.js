@@ -1,94 +1,122 @@
 import fs from "fs";
+import path from "path";
 import dotenv from "dotenv";
-import OpenAI from "openai";
+import { fileURLToPath } from "url";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { closeConn, getCollection } from "../db.js";
 
-dotenv.config();
+// ===============================
+// ✅ Load .env from backend root
+// ===============================
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+// Required because seed.js is inside /seed folder
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+// Load .env from backend root
+dotenv.config({ path: path.join(__dirname, "../.env") });
+
+// ===============================
+// ✅ Gemini setup (API key from .env)
+// ===============================
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const embeddingModel = genAI.getGenerativeModel({model: "models/gemini-embedding-001",});
+// const embeddingModel = genAI.getGenerativeModel({ model: "models/gemini-embedding-001" });
+
+// ===============================
+// ✅ Helper function
+// ===============================
 function flattenInsuranceRecord(record) {
-    const {
-        policyNumber,
-        name,
-        age,
-        insuranceType,
-        plan,
-        premium,
-        coverage,
-        startDate,
-        endDate,
-        claims = [],
-    } = record;
+  const {
+    policyNumber,
+    name,
+    age,
+    insuranceType,
+    plan,
+    premium,
+    coverage,
+    startDate,
+    endDate,
+    claims = [],
+  } = record;
 
-    // Convert claim objects to readable text
-    const claimText =
-        claims.length > 0
-            ? claims
-                .map(
-                    (c, i) =>
-                        `Claim ${i + 1}: ID ${c.claimId}, Date ${c.date}, Amount ₹${c.amount}, Reason: ${c.reason}, Status: ${c.status}`
-                )
-                .join("; ")
-            : "No claim history";
+  const claimText =
+    claims.length > 0
+      ? claims
+          .map(
+            (c, i) =>
+              `Claim ${i + 1}: ID ${c.claimId}, Date ${c.date}, Amount ₹${c.amount}, Reason: ${c.reason}, Status: ${c.status}`
+          )
+          .join("; ")
+      : "No claim history";
 
-    // Concatenate all details into one text string
-    return `
-        Policy Number: ${policyNumber}.
-        Customer Name: ${name}, Age: ${age}.
-        Insurance Type: ${insuranceType}.
-        Plan: ${plan}.
-        Premium: ₹${premium}, Coverage: ₹${coverage}.
-        Policy Period: ${startDate} to ${endDate}.
-        Claims: ${claimText}.
-  `;
+  return `
+Policy Number: ${policyNumber}
+Customer Name: ${name}, Age: ${age}
+Insurance Type: ${insuranceType}
+Plan: ${plan}
+Premium: ₹${premium}, Coverage: ₹${coverage}
+Policy Period: ${startDate} to ${endDate}
+Claims: ${claimText}
+`;
 }
 
+// ===============================
+// ✅ Generate & Store Embeddings
+// ===============================
 async function generateAndStoreEmbeddings() {
-    try {
-        // 1️⃣ Read insurance data
-        const fileData = fs.readFileSync("./seed/insurance_data.json", "utf-8");
-        const insuranceArray = JSON.parse(fileData);
-        console.log(`📄 Loaded ${insuranceArray.length} insurance records`);
+  try {
+    // ===============================
+    // 1️⃣ Read insurance data safely
+    // ===============================
+    const dataFilePath = path.join(
+      __dirname,
+      "insurance_data.json"
+    );
 
-        const documents = [];
+    const fileData = fs.readFileSync(dataFilePath, "utf-8");
+    const insuranceArray = JSON.parse(fileData);
 
-        // 2️⃣ Generate embeddings
-        for (const record of insuranceArray) {
-            const textChunk = flattenInsuranceRecord(record);
+    const documents = [];
 
-            const response = await openai.embeddings.create({
-                model: "text-embedding-3-small",
-                input: textChunk,
-                dimensions: 512,
-            });
+    // ===============================
+    // 2️⃣ Generate Gemini embeddings
+    // ===============================
+    for (const record of insuranceArray) {
+      const textChunk = flattenInsuranceRecord(record);
 
-            const embedding = response.data[0].embedding;
+      const result = await embeddingModel.embedContent(textChunk);
+      const embedding = result.embedding.values;
 
-            documents.push({
-                text: textChunk.trim(),
-                embedding,
-                policyNumber: record.policyNumber,
-                customerName: record.name,
-                insuranceType: record.insuranceType,
-            });
+      documents.push({
+        text: textChunk.trim(),
+        embedding,
+        policyNumber: record.policyNumber,
+        customerName: record.name,
+        insuranceType: record.insuranceType,
+      });
 
-            console.log(`✅ Generated embedding for ${record.name}`);
-        }
-
-        // 3️⃣ Connect to MongoDB
-        const collection = await getCollection("insurance_embeddings");
-
-        // 4️⃣ Insert all documents in bulk
-        if (documents.length > 0) {
-            await collection.insertMany(documents);
-            console.log(`🎯 Inserted ${documents.length} embeddings into MongoDB.`);
-        }
-    } catch (error) {
-        console.error("❌ Error:", error);
+      console.log(`✅ Gemini embedding generated for ${record.name}`);
     }
+
+    // ===============================
+    // 3️⃣ Store in MongoDB
+    // ===============================
+    const collection = await getCollection("insurance_embeddings");
+
+    if (documents.length > 0) {
+      await collection.insertMany(documents);
+      console.log(
+        `🎯 Inserted ${documents.length} embeddings into MongoDB`
+      );
+    }
+
+    await closeConn();
+  } catch (error) {
+    console.error("❌ Error:", error.message);
+  }
 }
 
+// ===============================
 generateAndStoreEmbeddings();

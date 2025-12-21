@@ -1,15 +1,17 @@
-// db.js
+import dotenv from "dotenv";
 import { MongoClient } from 'mongodb';
-const uri = process.env.MONGO_URI; // Replace with your URI
-const dbName = "rag";
 
+dotenv.config();
+const dbName = "rag";
 let client;
 let db;
 
 export async function connectToMongo() {
     if (db) return db;
-
-    client = new MongoClient(uri, { useUnifiedTopology: true });
+    const uri = process.env.MONGO_URI; // Read at runtime after dotenv
+    if (!uri) throw new Error("MONGO_URI environment variable is not set");
+    // client = new MongoClient(uri, { useUnifiedTopology: true });
+    client = new MongoClient(uri);
     await client.connect();
     db = client.db(dbName);
     console.log("✅ MongoDB connected");
@@ -29,12 +31,6 @@ export async function getCollection(collectionName) {
 }
 
 export async function closeConn() {
-    await db.close();
+    if (client) await client.close();
 }
 
-// module.exports = {
-//     connectToMongo,
-//     getDB,
-//     getCollection,
-//     closeConn
-// };

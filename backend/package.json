@@ -1,10 +1,11 @@
 {
   "name": "rag-pipeline-backend",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "seed": "node seed/seed.js"
   },
   "keywords": [
     "rag",
@@ -16,10 +17,14 @@
   "license": "ISC",
   "description": "RAG pipeline for building your own chatbot",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "mongodb": "^6.20.0",
-    "openai": "^6.1.0"
+    "mongodb": "^6.20.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }
+
