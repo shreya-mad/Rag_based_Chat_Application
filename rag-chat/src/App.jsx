@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "./App.css";
-// import dotenv from "dotenv";
+import Logo from "./assets/logo.png";
 import { BASE_URL } from  "./api";
 
 // dotenv.config();
@@ -11,6 +11,8 @@ function App() {
   const [answer, setAnswer] = useState("");
   const [displayedAnswer, setDisplayedAnswer] = useState("");
   const [loading, setLoading] = useState(false);
+  const [assistantTitle, setAssistantTitle] = useState("Insurance");
+
 
   const chatWindowRef = useRef(null);
 // below code is responsible for writing single word at a time rather than whole ans at a time so that user 
@@ -69,8 +71,24 @@ function App() {
 
   return (
     <div className="app">
-      <div className="header">RAG Chatbot</div>
+      <div className="header">
+      <div className="logo">
+  <img src={Logo} alt="AI Logo" />
+</div>
+<div>
+  {assistantTitle} AI Assistant
+  <div className="sub-header">Answers from your uploaded PDFs</div>
+</div>
+</div>
+
       <div className="chat-window" ref={chatWindowRef}>
+        {/* Welcome message (only when chat is empty) */}
+  {messages.length === 0 && !displayedAnswer && (
+    <div className="welcome-message">
+      <p>Hi there! I’m your AI Assistant.</p>
+      <p>Ask me anything....</p>
+    </div>
+  )}
         {messages.map((msg, i) => (
           <div
             key={i}
