@@ -3,6 +3,7 @@ import axios from "axios";
 import "./App.css";
 import Logo from "./assets/logo.png";
 import { BASE_URL } from  "./api";
+import ThinkingDots from './ThinkingDots';
 
 // dotenv.config();
 function App() {
@@ -110,7 +111,7 @@ function App() {
           onKeyDown={(e) => e.key === "Enter" && handleAsk()}
         />
         <button onClick={handleAsk} disabled={loading}>
-          {loading ? "Thinking..." : "Ask"}
+          {loading ? <ThinkingDots /> : "Ask"}
         </button>
       </div>
     </div>
