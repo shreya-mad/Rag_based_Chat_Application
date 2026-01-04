@@ -12,7 +12,7 @@ function App() {
   const [answer, setAnswer] = useState("");
   const [displayedAnswer, setDisplayedAnswer] = useState("");
   const [loading, setLoading] = useState(false);
-  const [assistantTitle, setAssistantTitle] = useState("Insurance");
+  const [assistantTitle, setAssistantTitle] = useState("MNNIT Campus");
 
 
   const chatWindowRef = useRef(null);
@@ -77,8 +77,8 @@ function App() {
   <img src={Logo} alt="AI Logo" />
 </div>
 <div>
-  {assistantTitle} AI Assistant
-  <div className="sub-header">Answers from your uploaded PDFs</div>
+  {assistantTitle} Assistant
+  <div className="sub-header">Your smart guide to campus information</div>
 </div>
 </div>
 
