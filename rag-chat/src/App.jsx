@@ -98,6 +98,11 @@ function App() {
             {msg.text}
           </div>
         ))}
+        {loading && (
+          <div className="chat-bubble bot-bubble">
+            <ThinkingDots />
+          </div>
+        )}
         {displayedAnswer && (
           <div className="chat-bubble bot-bubble">{displayedAnswer}</div>
         )}
@@ -111,7 +116,7 @@ function App() {
           onKeyDown={(e) => e.key === "Enter" && handleAsk()}
         />
         <button onClick={handleAsk} disabled={loading}>
-          {loading ? <ThinkingDots /> : "Ask"}
+          Ask
         </button>
       </div>
     </div>
