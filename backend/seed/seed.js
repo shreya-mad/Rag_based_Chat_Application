@@ -2,121 +2,157 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs"; // Stable ESM import
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { closeConn, getCollection } from "../db.js";
 
 // ===============================
-// ✅ Load .env from backend root
+// ✅ Resolve current directory
 // ===============================
-
-// Required because seed.js is inside /seed folder
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env from backend root
+// ===============================
+// ✅ Load .env from backend root
+// ===============================
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
 // ===============================
-// ✅ Gemini setup (API key from .env)
+// ✅ Gemini setup
 // ===============================
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const embeddingModel = genAI.getGenerativeModel({model: "models/gemini-embedding-001",});
-// const embeddingModel = genAI.getGenerativeModel({ model: "models/gemini-embedding-001" });
+const embeddingModel = genAI.getGenerativeModel({
+  model: "models/gemini-embedding-001",
+});
 
 // ===============================
-// ✅ Helper function
+// ✅ PDFs are in SAME folder as seed.js
 // ===============================
-function flattenInsuranceRecord(record) {
-  const {
-    policyNumber,
-    name,
-    age,
-    insuranceType,
-    plan,
-    premium,
-    coverage,
-    startDate,
-    endDate,
-    claims = [],
-  } = record;
+const PDF_DIRECTORY = __dirname;
 
-  const claimText =
-    claims.length > 0
-      ? claims
-          .map(
-            (c, i) =>
-              `Claim ${i + 1}: ID ${c.claimId}, Date ${c.date}, Amount ₹${c.amount}, Reason: ${c.reason}, Status: ${c.status}`
-          )
-          .join("; ")
-      : "No claim history";
+// ===============================
+// ✅ Chunk helper
+// ===============================
+function chunkText(text, chunkSize = 1000, overlap = 200) {
+  const chunks = [];
+  let start = 0;
 
-  return `
-Policy Number: ${policyNumber}
-Customer Name: ${name}, Age: ${age}
-Insurance Type: ${insuranceType}
-Plan: ${plan}
-Premium: ₹${premium}, Coverage: ₹${coverage}
-Policy Period: ${startDate} to ${endDate}
-Claims: ${claimText}
-`;
+  while (start < text.length) {
+    const end = start + chunkSize;
+    chunks.push(text.slice(start, end));
+    start += chunkSize - overlap;
+  }
+
+  return chunks;
 }
 
-// ===============================
-// ✅ Generate & Store Embeddings
-// ===============================
-async function generateAndStoreEmbeddings() {
+// =====================================
+// ✅ Extract text from PDF (PDFJS version)
+// =====================================
+async function extractTextFromPdf(filePath) {
   try {
-    // ===============================
-    // 1️⃣ Read insurance data safely
-    // ===============================
-    const dataFilePath = path.join(
-      __dirname,
-      "insurance_data.json"
+    const data = new Uint8Array(fs.readFileSync(filePath));
+    const loadingTask = pdfjs.getDocument({
+      data,
+      useSystemFonts: true,
+      disableFontFace: true, // Prevents issues in Node environment
+    });
+
+    const pdf = await loadingTask.promise;
+    let fullText = "";
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item) => item.str).join(" ");
+      fullText += pageText + "\n";
+    }
+
+    return fullText;
+  } catch (error) {
+    console.error(`❌ Error parsing PDF ${filePath}:`, error.message);
+    return null;
+  }
+}
+
+// =====================================
+// ✅ Generate embeddings from local PDFs
+// =====================================
+async function generateAndStoreEmbeddingsFromLocalPdfs() {
+  try {
+    const files = fs.readdirSync(PDF_DIRECTORY);
+
+    const pdfFiles = files.filter((file) =>
+      file.toLowerCase().endsWith(".pdf")
     );
 
-    const fileData = fs.readFileSync(dataFilePath, "utf-8");
-    const insuranceArray = JSON.parse(fileData);
-
-    const documents = [];
-
-    // ===============================
-    // 2️⃣ Generate Gemini embeddings
-    // ===============================
-    for (const record of insuranceArray) {
-      const textChunk = flattenInsuranceRecord(record);
-
-      const result = await embeddingModel.embedContent(textChunk);
-      const embedding = result.embedding.values;
-
-      documents.push({
-        text: textChunk.trim(),
-        embedding,
-        policyNumber: record.policyNumber,
-        customerName: record.name,
-        insuranceType: record.insuranceType,
-      });
-
-      console.log(`✅ Gemini embedding generated for ${record.name}`);
+    if (pdfFiles.length === 0) {
+      console.log("⚠️ No PDF files found in seed folder");
+      return;
     }
 
-    // ===============================
-    // 3️⃣ Store in MongoDB
-    // ===============================
-    const collection = await getCollection("insurance_embeddings");
+    const collection = await getCollection("pdf_embeddings");
+    
+    // Optional: Clear existing embeddings
+    // await collection.deleteMany({});
 
-    if (documents.length > 0) {
-      await collection.insertMany(documents);
-      console.log(
-        `🎯 Inserted ${documents.length} embeddings into MongoDB`
-      );
+    for (const file of pdfFiles) {
+      const pdfPath = path.join(PDF_DIRECTORY, file);
+      console.log(`\n📄 Processing PDF: ${file}`);
+
+      const text = await extractTextFromPdf(pdfPath);
+
+      if (!text || !text.trim()) {
+        console.warn(`⚠️ Empty or unreadable PDF skipped: ${file}`);
+        continue;
+      }
+
+      const chunks = chunkText(text);
+      console.log(`🧩 Split into ${chunks.length} chunks. Generating embeddings...`);
+
+      const documents = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i].trim();
+        if (!chunk) continue;
+
+        try {
+          const result = await embeddingModel.embedContent(chunk);
+          const embedding = result.embedding.values;
+
+          documents.push({
+            sourceFile: file,
+            sourcePath: pdfPath,
+            chunkIndex: i,
+            text: chunk,
+            embedding,
+            createdAt: new Date(),
+          });
+
+          process.stdout.write(`.`); 
+        } catch (embedError) {
+          console.error(`\n❌ Gemini Error on chunk ${i}:`, embedError.message);
+        }
+      }
+
+      if (documents.length > 0) {
+        await collection.insertMany(documents);
+        console.log(`\n✅ Finished and stored ${file}`);
+      }
     }
 
-    await closeConn();
+    console.log(`\n🎯 All processing complete!`);
+
   } catch (error) {
-    console.error("❌ Error:", error.message);
+    console.error("\n❌ Global Error:", error.message);
+  } finally {
+    await closeConn();
+    console.log("🔌 Database connection closed.");
   }
 }
 
 // ===============================
-generateAndStoreEmbeddings();
+// 🚀 Run seed script
+// ===============================
+generateAndStoreEmbeddingsFromLocalPdfs();
