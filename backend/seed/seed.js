@@ -99,8 +99,6 @@ async function generateAndStoreEmbeddingsFromLocalPdfs() {
 
     for (const file of pdfFiles) {
       const pdfPath = path.join(PDF_DIRECTORY, file);
-      console.log(`\n📄 Processing PDF: ${file}`);
-
       const text = await extractTextFromPdf(pdfPath);
 
       if (!text || !text.trim()) {
