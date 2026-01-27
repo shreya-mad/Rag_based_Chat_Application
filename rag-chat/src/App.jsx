@@ -12,7 +12,7 @@ function App() {
   const [answer, setAnswer] = useState("");
   const [displayedAnswer, setDisplayedAnswer] = useState("");
   const [loading, setLoading] = useState(false);
-  const [assistantTitle, setAssistantTitle] = useState("MNNIT Campus");
+  const [assistantTitle, setAssistantTitle] = useState("KNIT Campus");
 
 
   const chatWindowRef = useRef(null);
